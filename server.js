@@ -10,14 +10,14 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, { cors: { origin: "*" } });
 
-// 🚀 CONFIG
+// Config
 const GEO_FENCE_RADIUS = 0.1;
 const STATUS_CHECK_INTERVAL = 2000;
 const MAX_STATUS_CHECKS = 3;
 let dumpsterGeofences = new Map();
 let proximityChecks = new Map();
 
-// 🔥 ESP CACHE (prevent spam)
+// ESP Cache (prevent spam)
 const espCache = new Map();
 
 // Traccar config
@@ -43,7 +43,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// 🧠 DISTANCE CALCULATION (Haversine)
+// Distance calculations (Haversine)
 function getDistance(truckCoords, dumpsterCoords) {
   const lat1 = truckCoords.lat || truckCoords[0] || 42.00;
   const lon1 = truckCoords.lng || truckCoords[1] || 21.42;
@@ -61,7 +61,7 @@ function isWithinGeofence(truck, geofence) {
   return getDistance({lat: truck.lat, lng: truck.lng}, {lat: geofence.lat, lng: geofence.lng}) <= geofence.radius;
 }
 
-// 🔥 ESP CHECK WITH 10s CACHE - NO MORE SPAM!
+// ESP Checks with 10s cache
 async function checkDumpsterStatus(ip) {
   if (!ip || ip === '') return null;
   
@@ -79,14 +79,14 @@ async function checkDumpsterStatus(ip) {
     
     if (response.status === 200) {
       const data = response.data;
-      console.log(`✅ ESP ${ip} LIVE: ${data.fillLevel}%`);
+      console.log(`ESP ${ip} LIVE: ${data.fillLevel}%`);
       espCache.set(cacheKey, { data, timestamp: Date.now() });
       return data;
     }
   } catch (e) {
     // Silent fail after first log
     if (!lastCheck) {
-      console.log(`🔇 ESP ${ip} OFFLINE (10s cooldown)`);
+      console.log(`ESP ${ip} OFFLINE (10s cooldown)`);
     }
   }
   
@@ -94,7 +94,7 @@ async function checkDumpsterStatus(ip) {
   return null;
 }
 
-// 🔥 PROXIMITY CHECK - FULLY FIXED
+// Proximity checker
 async function checkTruckProximity() {
   for (const [truckId, route] of Object.entries(truckRoutes)) {
     const truck = route.truck;
@@ -114,7 +114,7 @@ async function checkTruckProximity() {
         if (checkData.checks < MAX_STATUS_CHECKS) {
           const freshData = await checkDumpsterStatus(geofence.ip);
           if (freshData) {
-            // 🕐 TIME-TO-EMPTY
+            // Time to empty
             if (checkData.lastFill && freshData.fillLevel < checkData.lastFill - 20) {
               const timeToEmpty = checkData.checks * 5;
               console.log(`🚛 EMPTIED ${dumpster.name}: -${Math.round((checkData.lastFill - freshData.fillLevel)*10)/10}% in ${timeToEmpty}s`);
@@ -126,7 +126,7 @@ async function checkTruckProximity() {
             checkData.lastEmptyTime = Date.now();
             proximityChecks.set(key, checkData);
             
-            // 💾 UPDATE GLOBAL STATE
+            // Update global state
             const updatedDumpster = {
               ...dumpster,
               attributes: freshData,
@@ -139,7 +139,7 @@ async function checkTruckProximity() {
               io.emit('dumpsters', dumpsters);
             }
             
-            // 🚀 REOPTIMIZE ROUTES
+            // Reoptimizing routes
             if (freshData.fillLevel < 10) {
               console.log(`🧠 REOPTIMIZE: ${dumpster.name} EMPTY (${freshData.fillLevel}%)`);
               truckRoutes = assignSmartRoutes(trucks, dumpsters);
@@ -152,7 +152,7 @@ async function checkTruckProximity() {
           }
         }
       } else {
-        // 🚛 TRUCK LEFT - POST-EMPTYING CHECK
+        // Post-emptying check after truck leaves
         const checkData = proximityChecks.get(key);
         if (checkData?.lastEmpty && checkData.lastEmptyTime) {
           const timeSinceEmpty = Date.now() - checkData.lastEmptyTime;
@@ -273,7 +273,7 @@ async function fetchDumpsters() {
     console.log('🔍 DEVICES:', devices.length, 'POSITIONS:', positions.length);
     console.log('🗺️ GEOFENCES:', geofences.map(g => g.name));
     
-    // 🗑️ GARBAGE DUMP
+    // Garbage dump
     const dumpGeofence = geofences.find(g => 
       g.name.toLowerCase().includes('deponija') || g.name.toLowerCase().includes('dump')
     );
@@ -298,7 +298,7 @@ async function fetchDumpsters() {
       };
     }
     
-    // 🗑️ DUMPSTERS
+    // Dumpsters
     const dumpsterDevices = devices.filter(d => !String(d.name || '').toLowerCase().includes('kamion'));
     console.log('🗑️ DUMPSTERS:', dumpsterDevices.length);
     
@@ -336,7 +336,7 @@ async function fetchDumpsters() {
     
     dumpsters = [...allDumpsters, GARBAGE_DUMP];
     
-    // 🚛 TRUCKS
+    // Trucks
     trucks = devices
       .filter(d => String(d.name || '').toLowerCase().includes('kamion'))
       .map(device => {
@@ -360,7 +360,7 @@ async function fetchDumpsters() {
   }
 }
 
-// 🔌 SOCKETS
+// Sockets
 io.on('connection', (socket) => {
   console.log('🌐 Connected:', socket.id);
   socket.emit('dumpsters', dumpsters);
@@ -380,7 +380,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// 🚀 START
+// Start
 server.listen(3000, () => {
   console.log('🚛 Skopje Waste Management: http://localhost:3000');
   fetchDumpsters();
