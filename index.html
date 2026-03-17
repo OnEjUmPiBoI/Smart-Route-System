@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skopje Waste Management System by Jane Majnovski</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { 
+    font-family: 'Inter', sans-serif;
+    font-size: 13px; background: #0a0e1a; color: #e5e7eb;
+    height: 100vh; overflow: hidden; line-height: 1.4;
+  }
+  
+  .header {
+    position: fixed; top: 0; left: 0; right: 0;
+    background: rgba(10,14,26,0.98); border-bottom: 1px solid #1f2937;
+    padding: 10px 20px; z-index: 1000; font-weight: 500;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .header-title { font-size: 15px; }
+  .route-controls { display: flex; gap: 10px; }
+  .route-btn {
+    padding: 6px 14px; background: #3b82f6; color: white; border: none;
+    border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 500;
+    transition: all 0.2s; text-decoration: none; display: inline-flex; align-items: center;
+  }
+  .route-btn:hover { background: #2563eb; }
+  .route-btn.active { background: #10b981; }
+  .analytics-btn {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+  }
+  .analytics-btn:hover { 
+    background: linear-gradient(135deg, #2563eb, #1e40af);
+    transform: translateY(-1px);
+  }
+  
+  .notification {
+    position: fixed; top: 80px; right: 20px; z-index: 2000;
+    padding: 12px 20px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    color: white; min-width: 300px; max-width: 400px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4); transform: translateX(400px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .notification.show { transform: translateX(0); }
+  .notification.success { background: linear-gradient(135deg, #10b981, #059669); }
+  .notification.warning { background: linear-gradient(135deg, #f59e0b, #d97706); }
+  .notification.error { background: linear-gradient(135deg, #dc2626, #b91c1c); }
+  
+  .main-content {
+    height: calc(100vh - 56px); padding: 16px; padding-top: 72px;
+    display: grid; grid-template-columns: 380px 1fr; grid-template-rows: 200px 1fr; gap: 12px;
+  }
+  
+  .truck-assignments { 
+    grid-column: 1; grid-row: 1; background: rgba(17,24,39,0.95); 
+    border: 1px solid #374151; border-radius: 12px; padding: 16px; 
+    overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  
+  .sidebar { 
+    grid-column: 1; grid-row: 2; display: flex; flex-direction: column; gap: 8px; 
+  }
+  .panel { 
+    background: rgba(17,24,39,0.95); border: 1px solid #374151; border-radius: 12px;
+    padding: 12px; flex: 1; display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  }
+  .panel.alerts-panel { flex: 0 0 220px; }
+  .panel.trucks-panel { flex: 0 0 220px; }
+  
+  .map-container { 
+    grid-column: 2; grid-row: 1 / 3; background: rgba(17,24,39,0.9);
+    border: 1px solid #374151; border-radius: 12px; padding: 12px;
+    display: flex; flex-direction: column; gap: 8px; overflow: hidden;
+  }
+  #map { height: 100%; flex: 1; border-radius: 8px; }
+  
+  .panel-header { 
+    font-size: 12px; font-weight: 600; color: #f9fafb; margin-bottom: 8px;
+    padding-bottom: 6px; border-bottom: 1px solid #374151; display: flex; align-items: center; gap: 6px;
+  }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .list { flex: 1; overflow-y: auto; }
+  .list-item { 
+    display: flex; align-items: center; padding: 6px 0; border-bottom: 1px solid #1f2937;
+    cursor: pointer; transition: all 0.2s; gap: 8px; font-size: 11px;
+  }
+  .list-item:hover { background: rgba(55,65,81,0.4); border-radius: 6px; padding: 6px 8px; }
+  .list-item > span:first-child { flex: 1; font-weight: 500; }
+  
+  .priority, .alert-type { 
+    padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 600; min-width: 24px; text-align: center;
+  }
+  .priority-critical, .alert-fire { background: #dc2626; color: white; }
+  .priority-high, .alert-overflow { background: #f59e0b; color: white; }
+  .priority-normal, .alert-biohazard { background: #10b981; color: white; }
+  
+  .sensor-data { color: #9ca3af; font-family: monospace; font-size: 12px; }
+  .coords, .ip-address { 
+    font-size: 9px; color: #6b7280; background: rgba(55,65,81,0.5); 
+    padding: 2px 4px; border-radius: 4px; font-family: monospace;
+  }
+  .empty { text-align: center; color: #6b7280; padding: 20px 8px; font-size: 11px; }
+  .truck-route { background: rgba(16,185,129,0.15); border-left: 3px solid #10b981; padding-left: 8px; }
+  .proximity-active { background: rgba(59,130,246,0.15) !important; border-left: 3px solid #3b82f6 !important; }
+  
+  .assignments-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 4px; }
+  .assignments-table th { 
+    padding: 8px 6px 6px; text-align: left; font-weight: 600; color: #f9fafb; 
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #374151;
+  }
+  .assignments-table td { padding: 8px 6px; border-bottom: 1px solid #1f2937; }
+  .assignments-table tr:hover { background: rgba(16,185,129,0.08); }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-title">Waste Management System - Skopje <span style="color: #10b981">● LIVE</span></div>
+    <div class="route-controls">
+      <a href="/analytics.html" target="_blank" class="route-btn analytics-btn" title="Open Analytics Dashboard">📊 Analytics</a>
+      <button id="optimize-route" class="route-btn">🚛 Optimize</button> 
+      <button id="clear-routes" class="route-btn">🗑️ Clear</button>
+    </div>
+  </div>
+  
+  <div id="notification-container"></div>
+  
+  <div class="main-content">
+    <div class="truck-assignments">
+      <div class="panel-header">
+        <div class="status-dot" style="background: #10b981;"></div>
+        Truck Assignments
+      </div>
+      <table class="assignments-table">
+        <thead><tr><th>Truck</th><th>Stops</th><th>Load</th><th>Critical</th><th>Distance</th></tr></thead>
+        <tbody id="assignments-tbody">
+          <tr><td colspan="5" class="empty">Waiting for server routes...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="sidebar">
+      <div class="panel alerts-panel">
+        <div class="panel-header">
+          <div class="status-dot" style="background: #dc2626;"></div>
+          Critical Alerts (<span id="alerts-count">0</span>)
+        </div>
+        <div id="alerts-list" class="list"><div class="empty">Waiting for data...</div></div>
+      </div>
+      
+      <div class="panel trucks-panel">
+        <div class="panel-header">
+          <div class="status-dot" style="background: #10b981;"></div>
+          Live Trucks (<span id="trucks-count">0</span>)
+        </div>
+        <div id="trucks" class="list"><div class="empty">No trucks online</div></div>
+      </div>
+      
+      <div class="panel">
+        <div class="panel-header">
+          <div class="status-dot" style="background: #f59e0b;"></div>
+          Dumpsters (<span id="dumpsters-count">0</span>)
+        </div>
+        <div id="dumpsters" class="list"><div class="empty">No dumpsters</div></div>
+      </div>
+    </div>
+    
+    <div class="map-container">
+      <div class="panel-header">
+        <div class="status-dot" style="background: #3b82f6;"></div>
+        Live Map - Skopje (Routes → Deponija)
+      </div>
+      <div id="map"></div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    let map, markers = [], routeControls = [], geofenceCircles = [], lastDumpsters = [], lastTrucks = [], truckRoutes = {};
+    let proximityActiveDumpsters = new Set();
+    const socket = typeof io !== 'undefined' ? io() : null;
+    const truckColors = ['#10b981','#f59e0b','#dc2626','#8b5cf6','#3b82f6'];
+
+    // 🔥 NOTIFICATION SYSTEM
+    function showNotification(message, type = 'success') {
+      const container = document.getElementById('notification-container');
+      const toast = document.createElement('div');
+      toast.className = `notification ${type}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      
+      setTimeout(() => toast.classList.add('show'), 100);
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+      }, 5000);
+    }
+
+    function detectHazard(dumpster) {
+      const attrs = dumpster.attributes || {};
+      const fill = attrs.fillLevel || 0;
+      const temp = attrs.temp || 20;
+      const humidity = attrs.humidity || 50;
+      
+      if (temp > 60) return { type: 'FIRE', color: '#dc2626' };
+      if (temp > 35 && temp < 45 && humidity > 85) return { type: 'BIOHAZARD', color: '#8b5cf6' };
+      if (fill > 90) return { type: 'OVERFLOW', color: '#f59e0b' };
+      if (temp > 45) return { type: 'HIGH TEMP', color: '#ef4444' };
+      return { type: 'NORMAL', color: '#10b981' };
+    }
+    
+    function getPriorityClass(priority) {
+      return priority >= 8 ? 'priority-critical' : priority >= 6 ? 'priority-high' : 'priority-normal';
+    }
+
+    function createGeofenceMarker(dumpster) {
+      if (!dumpster.lat || !dumpster.lng || !dumpster.ip) return;
+      
+      const circle = L.circle([dumpster.lat, dumpster.lng], {
+        radius: 100,
+        color: '#3b82f6',
+        fillColor: '#3b82f6',
+        fillOpacity: 0.1,
+        weight: 1,
+        dashArray: '3, 6'
+      }).addTo(map);
+      
+      circle.bindPopup(`📍 100m Geofence<br>ESP IP: ${dumpster.ip}`);
+      geofenceCircles.push(circle);
+    }
+    
+    function initMap() {
+      map = L.map('map').setView([42.00, 21.43], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+    }
+    
+    function clearMap() {
+      markers.forEach(m => map.removeLayer(m));
+      routeControls.forEach(rc => {
+        if (rc.removeControl) rc.removeControl();
+        else map.removeLayer(rc);
+      });
+      geofenceCircles.forEach(c => map.removeLayer(c));
+      
+      markers = [];
+      routeControls = [];
+      geofenceCircles = [];
+      proximityActiveDumpsters.clear();
+    }
+
+    function createDumpsterMarker(dumpster, isAssigned = false) {
+      if (!dumpster.lat || !dumpster.lng) return;
+      
+      const hazard = detectHazard(dumpster);
+      const priorityClass = getPriorityClass(dumpster.priority);
+      const color = hazard.type !== 'NORMAL' ? hazard.color : 
+                   priorityClass === 'priority-critical' ? '#dc2626' :
+                   priorityClass === 'priority-high' ? '#f59e0b' : '#10b981';
+      
+      const radius = isAssigned ? 16 : 12;
+      const weight = isAssigned ? 3 : 2;
+      const isProximityActive = proximityActiveDumpsters.has(dumpster.id);
+      
+      const marker = L.circleMarker([dumpster.lat, dumpster.lng], {
+        radius: radius + (isProximityActive ? 4 : 0),
+        fillColor: color,
+        color: isProximityActive ? '#3b82f6' : '#ffffff',
+        weight: weight + (isProximityActive ? 2 : 0),
+        fillOpacity: 0.9
+      }).addTo(map).bindPopup(`
+        <div style="font-family: Inter, sans-serif; min-width: 280px; padding: 16px;">
+          <h4 style="color: ${color}; margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">
+            🗑️ ${dumpster.name}
+          </h4>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px; margin-bottom: 12px;">
+            <div>📊 Fill:</div><div><strong>${dumpster.attributes?.fillLevel || 0}%</strong></div>
+            <div>🌡️ Temp:</div><div><strong>${dumpster.attributes?.temp || 20}°C</strong></div>
+            <div>💧 Humidity:</div><div><strong>${dumpster.attributes?.humidity || 50}%</strong></div>
+            <div>🚨 Priority:</div><div><strong style="color: ${color};">${dumpster.priority}</strong></div>
+            ${dumpster.ip ? `<div>🌐 ESP IP:</div><div><strong style="color: #10b981;">${dumpster.ip}</strong></div>` : ''}
+          </div>
+          <div style="padding: 8px 12px; background: ${hazard.color}20; border-radius: 6px; font-size: 13px; font-weight: 500; margin-bottom: 8px;">
+            ⚠️ ${hazard.type} ${isProximityActive ? '🚛 TRUCK NEARBY' : ''}
+          </div>
+          <div style="color: #9ca3af; font-size: 12px;">
+            Updated: ${new Date(dumpster.lastUpdate || Date.now()).toLocaleString()}
+          </div>
+        </div>
+      `);
+      markers.push(marker);
+    }
+
+    // 🔥 FIXED: ALWAYS SEND TO DEPONIJA (DUMP_001)
+    async function createStreetRoute(truck, dumpsters, truckIndex) {
+      const color = truckColors[truckIndex % truckColors.length];
+      
+      // 🚨 ENSURE DEPONIJA IS LAST STOP
+      const routeDumpsters = [...dumpsters.filter(d => d.id !== 'DUMP_001')];
+      const deponija = dumpsters.find(d => d.id === 'DUMP_001') || {
+        lat: 41.9973, lng: 21.4280, name: 'Skopje Deponija', id: 'DUMP_001'
+      };
+      
+      if (!truck.lat || !truck.lng) {
+        createDottedFallback(truck, [...routeDumpsters, deponija], color);
+        return;
+      }
+      
+      // ✅ ROUTE: TRUCK → DUMPSTERS → DEPONIJA
+      const coords = [
+        `${truck.lng.toFixed(6)},${truck.lat.toFixed(6)}`,
+        ...routeDumpsters.slice(0, 4).map(d => `${d.lng?.toFixed(6) || 21.43},${d.lat?.toFixed(6) || 42.00}`),
+        `${deponija.lng.toFixed(6)},${deponija.lat.toFixed(6)}`  // ✅ ALWAYS END AT DEPONIJA
+      ].join(';');
+      
+      const url = `http://10.43.219.108:5000/route/v1/driving/${coords}?overview=full&geometries=polyline6&steps=false`;
+      
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.code === 'Ok' && data.routes?.[0]?.geometry) {
+          const coordsDecoded = decodePolyline(data.routes[0].geometry);
+          const routeLine = L.polyline(coordsDecoded, {
+            color: color,
+            weight: 6,
+            opacity: 0.9,
+            dashArray: '5, 10'
+          }).addTo(map);
+          
+          // 🏭 DEPONIJA MARKER (ORANGE)
+          L.circleMarker([deponija.lat, deponija.lng], {
+            radius: 20, fillColor: '#f59e0b', color: '#ffffff', 
+            weight: 4, fillOpacity: 0.95
+          }).addTo(map).bindPopup(`🏭 ${deponija.name}`);
+          
+          routeControls.push(routeLine);
+        } else {
+          createDottedFallback(truck, [...routeDumpsters, deponija], color);
+        }
+      } catch (e) {
+        createDottedFallback(truck, [...routeDumpsters, deponija], color);
+      }
+    }
+
+    function decodePolyline(encoded, precision = 1e6) {
+      let index = 0, lat = 0, lng = 0, coordinates = [];
+      while (index < encoded.length) {
+        let b, shift = 0, result = 0;
+        do {
+          b = encoded.charCodeAt(index++) - 63;
+          result |= (b & 0x1f) << shift;
+          shift += 5;
+        } while (b >= 0x20);
+        let dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+        lat += dlat;
+        
+        shift = result = b = 0;
+        do {
+          b = encoded.charCodeAt(index++) - 63;
+          result |= (b & 0x1f) << shift;
+          shift += 5;
+        } while (b >= 0x20);
+        let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+        lng += dlng;
+        
+        coordinates.push([lat / precision, lng / precision]);
+      }
+      return coordinates;
+    }
+    
+    function createDottedFallback(truck, dumpsters, color) {
+      if (!truck.lat || !truck.lng) return;
+      const coords = [[truck.lat, truck.lng]];
+      dumpsters.forEach(d => {
+        if (d.lat && d.lng) coords.push([d.lat, d.lng]);
+      });
+      const line = L.polyline(coords, {
+        color: color,
+        weight: 3,
+        opacity: 0.6,
+        dashArray: '8, 12'
+      }).addTo(map);
+      routeControls.push(line);
+    }
+    
+    function updateMap() {
+      clearMap();
+      
+      // 🔥 GEOFENCES FIRST
+      lastDumpsters.filter(d => d.ip).forEach(d => createGeofenceMarker(d));
+      
+      let truckIndex = 0;
+      Object.entries(truckRoutes).forEach(([id, route]) => {
+        const truck = route.truck;
+        const dumpsters = route.dumpsters || [];
+        
+        if (truck.lat && truck.lng) {
+          createStreetRoute(truck, dumpsters, truckIndex);  // ✅ SENDS TO DEPONIJA
+          
+          // 🚛 TRUCK MARKER
+          L.circleMarker([truck.lat, truck.lng], {
+            radius: 24, fillColor: truckColors[truckIndex], color: '#ffffff', 
+            weight: 4, fillOpacity: 0.95
+          }).addTo(map).bindPopup(`🚛 ${truck.name}`);
+          
+          dumpsters.forEach(d => {
+            if (d.id !== 'DUMP_001') createDumpsterMarker(d, true);  // Skip deponija marker
+          });
+        }
+        truckIndex++;
+      });
+      
+      // Unassigned dumpsters
+      lastDumpsters.forEach(dumpster => {
+        if (dumpster.id === 'DUMP_001') return;  // Skip deponija
+        const isAssigned = Object.values(truckRoutes).some(route => 
+          route.dumpsters?.some(d => d.id === dumpster.id)
+        );
+        if (!isAssigned && dumpster.lat && dumpster.lng) {
+          createDumpsterMarker(dumpster, false);
+        }
+      });
+    }
+    
+    function updateAssignmentsTable() {
+      const tbody = document.getElementById('assignments-tbody');
+      if (Object.keys(truckRoutes).length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty">No active routes</td></tr>';
+        return;
+      }
+      tbody.innerHTML = Object.entries(truckRoutes).map(([id, route], index) => `
+        <tr>
+          <td style="font-weight: 500;"><span style="color: ${truckColors[index % truckColors.length]}">🚛 ${route.truck.name}</span></td>
+          <td>${route.stopCount || 0}</td>
+          <td>${route.totalWeight || 0}t</td>
+          <td><span class="priority priority-critical">${route.highPriorityCount || 0}</span></td>
+          <td>${((route.totalDistance || 0)/1000).toFixed(1)}km</td>
+        </tr>
+      `).join('');
+    }
+    
+    function updateAlerts(criticalDumpsters) {
+      document.getElementById('alerts-count').textContent = criticalDumpsters.length;
+      const el = document.getElementById('alerts-list');
+      el.innerHTML = criticalDumpsters.map(d => {
+        const hazard = detectHazard(d);
+        const isProximity = proximityActiveDumpsters.has(d.id);
+        return `
+          <div class="list-item ${isProximity ? 'proximity-active truck-route' : 'truck-route'}" 
+               onclick="if(map) map.setView([${d.lat}, ${d.lng}], 16)">
+            <span>🗑️ ${d.name}</span>
+            <span class="sensor-data">${d.attributes?.fillLevel || 0}%</span>
+            <span class="alert-type ${hazard.type === 'FIRE' ? 'alert-fire' : hazard.type === 'BIOHAZARD' ? 'alert-biohazard' : hazard.type === 'HIGH TEMP' ? 'priority-critical' : 'alert-overflow'}">${hazard.type}</span>
+            <span class="priority ${getPriorityClass(d.priority)}">${d.priority}</span>
+            ${isProximity ? '<span style="color: #3b82f6; font-size: 10px;">🚛 NEARBY</span>' : ''}
+          </div>
+        `;
+      }).join('') || '<div class="empty">No critical alerts</div>';
+    }
+    
+    function updateTrucks(trucksData) {
+      document.getElementById('trucks-count').textContent = trucksData.length;
+      const el = document.getElementById('trucks');
+      el.innerHTML = trucksData.map(t => `
+        <div class="list-item" onclick="if(map) map.setView([${t.lat}, ${t.lng}], 16)">
+          <span>🚛 ${t.name}</span>
+          <span class="sensor-data">●</span>
+          <span class="coords">${t.lat?.toFixed(4)}, ${t.lng?.toFixed(4)}</span>
+        </div>
+      `).join('') || '<div class="empty">No trucks online</div>';
+      lastTrucks = trucksData;
+    }
+    
+    function updateDumpsters(dumpstersData) {
+      document.getElementById('dumpsters-count').textContent = dumpstersData.length;
+      const el = document.getElementById('dumpsters');
+      el.innerHTML = dumpstersData.map(d => {
+        const hazard = detectHazard(d);
+        const isProximity = proximityActiveDumpsters.has(d.id);
+        return `
+          <div class="list-item ${isProximity ? 'proximity-active' : ''}" onclick="if(map) map.setView([${d.lat}, ${d.lng}], 16)">
+            <span>🗑️ ${d.name}</span>
+            <span class="sensor-data">📊 ${d.attributes?.fillLevel || 0}%</span>
+            <span class="sensor-data">🌡️ ${d.attributes?.temp || 20}°C</span>
+            ${d.ip ? `<span class="ip-address">🌐 ${d.ip}</span>` : ''}
+            <span class="priority ${getPriorityClass(d.priority)}">${d.priority}</span>
+          </div>
+        `;
+      }).join('');
+      lastDumpsters = dumpstersData;
+    }
+
+    if (socket) {
+      socket.on('dumpsters', (data) => {
+        lastDumpsters = data;
+        const critical = data.filter(d => d.priority >= 8 && d.id !== 'DUMP_001');
+        updateAlerts(critical);
+        updateDumpsters(data);
+        updateMap();
+      });
+      
+      socket.on('trucks', (data) => {
+        lastTrucks = data;
+        updateTrucks(data);
+        updateMap();
+      });
+      
+      socket.on('routes', (data) => {
+        truckRoutes = data;
+        updateAssignmentsTable();
+        updateMap();
+      });
+
+      socket.on('proximity-update', (data) => {
+        const { dumpster, isEmptyConfirmed } = data;
+        proximityActiveDumpsters.add(dumpster.id);
+        
+        if (isEmptyConfirmed) {
+          showNotification(`✅ ${dumpster.name} CONFIRMED EMPTY (${dumpster.attributes.fillLevel}%) - Routes reoptimized!`, 'success');
+        } else {
+          showNotification(`🚛 Truck near ${dumpster.name} - Checking ESP status...`, 'warning');
+        }
+        
+        updateAlerts(lastDumpsters.filter(d => d.priority >= 8 && d.id !== 'DUMP_001'));
+        updateDumpsters(lastDumpsters);
+        updateMap();
+      });
+
+      document.getElementById('optimize-route').addEventListener('click', () => {
+        document.getElementById('optimize-route').classList.add('active');
+        setTimeout(() => document.getElementById('optimize-route').classList.remove('active'), 200);
+        socket.emit('optimize-routes');
+        showNotification('🧠 Smart routes optimized → All end at Deponija!', 'success');
+      });
+      
+      document.getElementById('clear-routes').addEventListener('click', () => {
+        socket.emit('clear-routes');
+        showNotification('🗑️ All routes cleared', 'warning');
+      });
+    }
+    
+    document.addEventListener('DOMContentLoaded', () => {
+      initMap();
+      console.log('✅ Skopje Waste - FIXED ROUTES TO DEPONIJA!');
+    });
+  </script>
+</body>
+</html>

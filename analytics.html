@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📊 Dumpster Analytics - Skopje Waste Management</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #0a0e1a 0%, #1a2332 100%);
+      color: #e5e7eb; min-height: 100vh; 
+    }
+    
+    .header { 
+      background: rgba(10,14,26,0.98); backdrop-filter: blur(20px); 
+      border-bottom: 1px solid #374151; padding: 16px 24px; position: sticky; top: 0; z-index: 100;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .header-title { 
+      font-size: 24px; font-weight: 700; background: linear-gradient(135deg, #3b82f6, #10b981);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .back-btn { 
+      background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border: none; 
+      padding: 12px 24px; border-radius: 12px; font-weight: 600; cursor: pointer; 
+      font-size: 14px; text-decoration: none; box-shadow: 0 4px 12px rgba(239,68,68,0.4);
+      transition: all 0.2s;
+    }
+    .back-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(239,68,68,0.5); }
+    
+    .main-container { max-width: 1600px; margin: 0 auto; padding: 24px; }
+    
+    .filter-section {
+      display: flex; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;
+    }
+    .filter-buttons { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .filter-btn { 
+      padding: 12px 20px; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); 
+      border-radius: 10px; color: #3b82f6; font-weight: 600; cursor: pointer; transition: all 0.2s; 
+      font-size: 14px; height: 44px; display: flex; align-items: center; gap: 6px;
+      outline: none !important;
+    }
+    .filter-btn:focus { outline: none !important; }
+    .filter-btn.active, .filter-btn:hover { 
+      background: #3b82f6 !important; color: white !important; box-shadow: 0 4px 16px rgba(59,130,246,0.4); 
+      transform: translateY(-1px);
+    }
+    .filter-all { background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.3); color: #10b981; }
+    .filter-all.active, .filter-all:hover { background: #10b981 !important; color: white !important; }
+    
+    .selected-display {
+      padding: 7px 24px; background: rgba(50,50,100,0.9); border: none; 
+      border-radius: 12px; font-weight: 700; font-size: 20px; min-height: 46px; 
+      display: flex; align-items: center; justify-content: center; gap: 8px; 
+      backdrop-filter: blur(10px); color: white !important;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      text-align: center;
+    }
+    
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 32px; min-height: 160px; }
+    .kpi-card { background: rgba(17,24,39,0.8); backdrop-filter: blur(16px); border: 1px solid rgba(59,130,246,0.2); border-radius: 16px; padding: 24px; text-align: center; height: 140px; display: flex; flex-direction: column; justify-content: center; transition: all 0.3s; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+    .kpi-card:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(59,130,246,0.15); }
+    .kpi-value { font-size: 36px; font-weight: 700; margin-bottom: 4px; }
+    .kpi-label { font-size: 14px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    /* ORIGINAL 2x2 GRID */
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; height: 500px; }
+    .chart-card { background: rgba(17,24,39,0.9); border: 1px solid #374151; border-radius: 16px; padding: 24px; height: 100%; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+    .chart-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; color: #f9fafb; }
+    .chart-container { flex: 1; position: relative; height: 350px; min-height: 350px; }
+    
+    /* ORIGINAL TABLE FONTS */
+    .latest-table-container { height: 400px; overflow-y: auto; border: 1px solid #374151; border-radius: 8px; background: rgba(31,41,55,0.5); font-size: 13px; }
+    .table-header { background: #1f2937; padding: 16px; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 2fr; gap: 12px; font-weight: 600; color: #f9fafb; position: sticky; top: 0; z-index: 10; }
+    .table-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 2fr; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #374151; cursor: pointer; transition: all 0.2s; }
+    .table-row:hover { background: rgba(59,130,246,0.15); }
+    .table-row.active { background: rgba(59,130,246,0.25); border-left: 4px solid #3b82f6; }
+    .fill-high { color: #f59e0b; font-weight: 600; }
+    .temp-high { color: #ef4444; font-weight: 600; }
+    .priority-critical { color: #dc2626; font-weight: 600; }
+    
+    @media (max-width: 1200px) { 
+      .charts-grid { grid-template-columns: 1fr; height: auto; } 
+      .filter-section { flex-direction: column; align-items: stretch; }
+      .filter-buttons { order: 2; }
+      .selected-display { order: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-title">📊 Dumpster Analytics Dashboard</div>
+    <a href="/" class="back-btn">⬅️ Live Dashboard</a>
+  </div>
+
+  <div class="main-container">
+    <div class="filter-section">
+      <div class="filter-buttons">
+        <button class="filter-btn filter-all active" onclick="setFilter('all')">🏠 All Dumpsters</button>
+        <button class="filter-btn" onclick="setFilter('critical')">🚨 Critical Only</button>
+        <button class="filter-btn" onclick="setFilter('high-fill')">📊 High Fill</button>
+      </div>
+      <div id="selected-display" class="selected-display">
+        All dumpsters
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-value" id="total-updates">0</div><div class="kpi-label">Total Updates</div></div>
+      <div class="kpi-card"><div class="kpi-value" id="avg-fill">0%</div><div class="kpi-label">Avg Fill Level</div></div>
+      <div class="kpi-card"><div class="kpi-value" id="avg-temp">0°C</div><div class="kpi-label">Avg Temperature</div></div>
+      <div class="kpi-card"><div class="kpi-value" id="critical-count">0</div><div class="kpi-label">Critical Alerts</div></div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">📈 Fill Level Over Time</div>
+        <div class="chart-container"><canvas id="fillChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">🌡️ Temperature Trends</div>
+        <div class="chart-container"><canvas id="tempChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">🚨 Priority Levels</div>
+        <div class="chart-container"><canvas id="priorityChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">📋 Latest Updates</div>
+        <div class="latest-table-container">
+          <div class="table-header">
+            <div>🗑️ Dumpster</div><div>📊 Fill</div><div>🌡️ Temp</div><div>💧 Hum</div><div>🚨 Pri</div><div>🕐 Time</div>
+          </div>
+          <div id="table-body">Loading...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    let allHistory = [], currentFilter = 'all', currentDumpster = null;
+    let charts = {};
+
+    function updateSelectedDisplay() {
+      const display = document.getElementById('selected-display');
+      display.style.color = 'white';
+      
+      if (currentDumpster) {
+        display.textContent = currentDumpster;
+      } else if (currentFilter === 'all') {
+        display.textContent = 'All dumpsters';
+      } else if (currentFilter === 'critical') {
+        display.textContent = 'Critical only';
+      } else if (currentFilter === 'high-fill') {
+        display.textContent = 'High fill only';
+      }
+    }
+
+    function parseData(rawData) {
+      if (!rawData || !Array.isArray(rawData)) return generateDemoData();
+      return rawData.map(row => {
+        const name = row.dumpster_name || row.name || row.device_name || row.dumpster_id || row.id || 'Unknown';
+        const fill = Number(row.fillLevel) || Number(row.fill_level) || Number(row.filllevel) || 0;
+        const temp = Number(row.temp) || Number(row.temperature) || 20;
+        const hum = Number(row.humidity) || 50;
+        const pri = Number(row.priority) || 0;
+        const time = row.created_at || row.timestamp || new Date().toISOString();
+        return {
+          dumpster_name: name,
+          fillLevel: Math.max(0, Math.min(100, fill)),
+          temp: Math.max(0, temp),
+          humidity: Math.max(0, Math.min(100, hum)),
+          priority: Math.max(0, pri),
+          created_at: new Date(time).toISOString()
+        };
+      }).filter(row => row.fillLevel >= 0).slice(0, 200);
+    }
+
+    function generateDemoData() {
+      return Array.from({length: 50}, (_, i) => ({
+        dumpster_name: `Kanta ${Math.floor(i/5)+1}`,
+        fillLevel: 20 + Math.sin(i*0.3)*60 + (Math.random()-0.5)*15,
+        temp: 18 + Math.sin(i*0.4)*15 + (Math.random()-0.5)*5,
+        humidity: 40 + Math.random()*40,
+        priority: Math.floor(Math.random()*8)+1,
+        created_at: new Date(Date.now() - i*5*60000).toISOString()
+      }));
+    }
+
+    function initCharts() {
+      const configs = [
+        {id: 'fillChart', type: 'line', color: '#10b981', maxY: 100},
+        {id: 'tempChart', type: 'line', color: '#f59e0b', maxY: 60},
+        {id: 'priorityChart', type: 'bar', color: '#3b82f6', maxY: 12}
+      ];
+      configs.forEach(config => {
+        const canvas = document.getElementById(config.id);
+        if (canvas) {
+          charts[config.id] = new Chart(canvas.getContext('2d'), {
+            type: config.type,
+            data: {labels: [], datasets: [{label: config.id, data: [], borderColor: config.color, backgroundColor: config.color+'20', fill: true, tension: 0.4}]},
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              scales: {x: {display: false}, y: {beginAtZero: true, max: config.maxY, grid: {color: 'rgba(55,65,81,0.3)'}, ticks: {color: '#9ca3af', font: {size: 11}}}},
+              plugins: {legend: {display: false}},
+              animation: {duration: 0}
+            }
+          });
+        }
+      });
+    }
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      currentDumpster = null;
+      document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+      updateSelectedDisplay();
+      updateDashboard();
+    }
+
+    function selectDumpster(name) {
+      currentDumpster = name;
+      currentFilter = 'all';
+      document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelector('.filter-all').classList.add('active');
+      updateSelectedDisplay();
+      updateDashboard();
+    }
+
+    function updateDashboard() {
+      let data = [...allHistory];
+      
+      if (!currentDumpster) {
+        const latestPerDumpster = {};
+        data.forEach(record => {
+          const name = record.dumpster_name;
+          if (!latestPerDumpster[name] || new Date(record.created_at) > new Date(latestPerDumpster[name].created_at)) {
+            latestPerDumpster[name] = record;
+          }
+        });
+        data = Object.values(latestPerDumpster);
+        
+        if (currentFilter === 'critical') data = data.filter(d => d.priority >= 8);
+        else if (currentFilter === 'high-fill') data = data.filter(d => d.fillLevel > 80);
+      } else {
+        data = data.filter(d => d.dumpster_name === currentDumpster);
+      }
+      
+      data = data.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+
+      const statsData = currentDumpster ? allHistory.filter(d => d.dumpster_name === currentDumpster) : allHistory;
+      document.getElementById('total-updates').textContent = statsData.length;
+      document.getElementById('avg-fill').textContent = statsData.length ? Math.round(statsData.reduce((a,b)=>a+b.fillLevel,0)/statsData.length) + '%' : '0%';
+      document.getElementById('avg-temp').textContent = statsData.length ? Math.round(statsData.reduce((a,b)=>a+b.temp,0)/statsData.length) + '°C' : '0°C';
+      document.getElementById('critical-count').textContent = statsData.filter(d => d.priority >= 8).length;
+
+      const recent = data.slice(0, 30);
+      const labels = recent.map((_,i) => `T-${30-i}`);
+      
+      ['fillChart', 'tempChart'].forEach(id => {
+        if (charts[id]) {
+          charts[id].data.labels = labels;
+          charts[id].data.datasets[0].data = recent.map(d => id === 'fillChart' ? d.fillLevel : d.temp);
+          charts[id].update('none');
+        }
+      });
+
+      if (charts.priorityChart) {
+        const counts = {};
+        data.forEach(d => counts[d.priority] = (counts[d.priority] || 0) + 1);
+        charts.priorityChart.data.labels = Object.keys(counts).sort((a,b)=>b-a);
+        charts.priorityChart.data.datasets[0].data = Object.values(counts);
+        charts.priorityChart.update('none');
+      }
+
+      const rows = data.slice(0, 20).map(d => `
+        <div class="table-row ${currentDumpster === d.dumpster_name ? 'active' : ''}" 
+             onclick="selectDumpster('${d.dumpster_name.replace(/'/g,"\\\\'")}')">
+          <div style="font-weight:500;">${d.dumpster_name}</div>
+          <div class="${d.fillLevel > 80 ? 'fill-high' : ''}">${d.fillLevel.toFixed(0)}%</div>
+          <div class="${d.temp > 40 ? 'temp-high' : ''}">${d.temp.toFixed(0)}°C</div>
+          <div>${d.humidity.toFixed(0)}%</div>
+          <div class="${d.priority >= 8 ? 'priority-critical' : ''}">${d.priority}</div>
+          <div style="font-size:12px;color:#9ca3af;">${new Date(d.created_at).toLocaleString('mk-MK')}</div>
+        </div>
+      `).join('');
+      
+      document.getElementById('table-body').innerHTML = rows || '<div style="padding:40px;text-align:center;color:#6b7280;">No data</div>';
+    }
+
+    async function loadData() {
+      try {
+        const res = await fetch('/api/dumpster-history-all');
+        const raw = await res.json();
+        allHistory = parseData(raw);
+        updateDashboard();
+      } catch (e) {
+        allHistory = generateDemoData();
+        updateDashboard();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initCharts();
+      updateSelectedDisplay();
+      loadData();
+      setInterval(loadData, 30000);
+    });
+  </script>
+</body>
+</html>
