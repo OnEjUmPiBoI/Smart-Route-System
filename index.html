@@ -187,7 +187,7 @@
     const socket = typeof io !== 'undefined' ? io() : null;
     const truckColors = ['#10b981','#f59e0b','#dc2626','#8b5cf6','#3b82f6'];
 
-    // 🔥 NOTIFICATION SYSTEM
+    // Notification system
     function showNotification(message, type = 'success') {
       const container = document.getElementById('notification-container');
       const toast = document.createElement('div');
@@ -298,11 +298,11 @@
       markers.push(marker);
     }
 
-    // 🔥 FIXED: ALWAYS SEND TO DEPONIJA (DUMP_001)
+      // Always send to landfill
     async function createStreetRoute(truck, dumpsters, truckIndex) {
       const color = truckColors[truckIndex % truckColors.length];
       
-      // 🚨 ENSURE DEPONIJA IS LAST STOP
+      // Ensure landfill is last stop
       const routeDumpsters = [...dumpsters.filter(d => d.id !== 'DUMP_001')];
       const deponija = dumpsters.find(d => d.id === 'DUMP_001') || {
         lat: 41.9973, lng: 21.4280, name: 'Skopje Deponija', id: 'DUMP_001'
@@ -313,7 +313,7 @@
         return;
       }
       
-      // ✅ ROUTE: TRUCK → DUMPSTERS → DEPONIJA
+      // Route: Truck → Dumpsters → Landfill
       const coords = [
         `${truck.lng.toFixed(6)},${truck.lat.toFixed(6)}`,
         ...routeDumpsters.slice(0, 4).map(d => `${d.lng?.toFixed(6) || 21.43},${d.lat?.toFixed(6) || 42.00}`),
@@ -335,7 +335,7 @@
             dashArray: '5, 10'
           }).addTo(map);
           
-          // 🏭 DEPONIJA MARKER (ORANGE)
+          // Landfill marker (ORANGE)
           L.circleMarker([deponija.lat, deponija.lng], {
             radius: 20, fillColor: '#f59e0b', color: '#ffffff', 
             weight: 4, fillOpacity: 0.95
@@ -394,7 +394,7 @@
     function updateMap() {
       clearMap();
       
-      // 🔥 GEOFENCES FIRST
+      // Geofences first
       lastDumpsters.filter(d => d.ip).forEach(d => createGeofenceMarker(d));
       
       let truckIndex = 0;
@@ -405,7 +405,7 @@
         if (truck.lat && truck.lng) {
           createStreetRoute(truck, dumpsters, truckIndex);  // ✅ SENDS TO DEPONIJA
           
-          // 🚛 TRUCK MARKER
+          // Truck marker
           L.circleMarker([truck.lat, truck.lng], {
             radius: 24, fillColor: truckColors[truckIndex], color: '#ffffff', 
             weight: 4, fillOpacity: 0.95
