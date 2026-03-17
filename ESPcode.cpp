@@ -5,9 +5,9 @@
 #include <WebServer.h>
 #include <DHT.h>
 #include <EEPROM.h>
-#include <esp_system.h>   // for esp_random()
+#include <esp_system.h>   
 
-// 🔧 ESP32-S3 PINS (adjust as needed for your board)
+// Defining pins for sensors and sound speed
 #define TRIG_PIN 5    // GPIO5
 #define ECHO_PIN 4    // GPIO4
 #define DHT_PIN 2     // GPIO2
@@ -15,7 +15,7 @@
 #define DHT_TYPE DHT11
 #define SOUND_SPEED 0.034
 
-// DUMPSTER DIMENSIONS
+// Dumpster dimensions (edit for any one dumpster)
 #define EMPTY_DISTANCE 35
 #define FULL_DISTANCE 5
 
@@ -24,15 +24,16 @@ int bootCount = 1;
 DHT dht(DHT_PIN, DHT_TYPE);
 WebServer server(80);
 
-const char* ssid = "galaxy";
-const char* password = "peiq3746";
-String traccarIP = "10.43.219.108";  // Default, can be changed via webhook
+// Wifi network that the esp connects to
+const char* ssid = "galaxy"; // SSID (name) of network the RPi is connected to
+const char* password = "peiq3746"; // Password to the network
+String traccarIP = "10.43.219.108";  // IP adress of the RPi
 const int traccarPort = 5055;
 
 // EEPROM settings
 const int EEPROM_SIZE = 512;
-const int TRACCAR_IP_ADDR = 0;     // Start address for IP string
-const int TRACCAR_IP_LEN = 32;     // Max IP string length
+const int TRACCAR_IP_ADDR = 0;
+const int TRACCAR_IP_LEN = 32;
 
 struct Device {
   const char* id;
@@ -114,7 +115,7 @@ int readDistance() {
 void sendAllDumpsters(int realFill, float realTemp, float realHumidity, bool skipIfEmpty = false) {
   // Skip sending data if dumpster is empty and flag is set
   if (skipIfEmpty && realFill == 0) {
-    Serial.println("⏭️ Dumpster empty - skipping data send (status-only mode)");
+    Serial.println("Dumpster empty - Skipping data send (status-only mode)");
     return;
   }
   
@@ -122,16 +123,16 @@ void sendAllDumpsters(int realFill, float realTemp, float realHumidity, bool ski
   dumpsters[0].temp = realTemp;
   dumpsters[0].humidity = realHumidity;
   
-  String espIP = WiFi.localIP().toString();  // ✅ ESP IP for Traccar
+  String espIP = WiFi.localIP().toString();  // ESP IP for Traccar
   
-  Serial.println("📡 SENDING 10 DUMPSTERS...");
+  Serial.println("Sending 10 Dumpsters...");
   
   for (int i = 0; i < 10; i++) {
     WiFiClient client;
     HTTPClient http;
     http.setTimeout(10000);
     
-    // ✅ FIXED: Use Traccar 'ip' parameter + all custom attributes
+    // Uploading custom information to the Traccar IP of the RPi
     String url = "http://" + traccarIP + ":" + String(traccarPort) +
                  "/?id=" + String(dumpsters[i].id) +
                  "&lat=" + String(dumpsters[i].lat, 6) +
@@ -140,11 +141,11 @@ void sendAllDumpsters(int realFill, float realTemp, float realHumidity, bool ski
                  "&fillLevel=" + String(dumpsters[i].fill) +
                  "&temp=" + String(dumpsters[i].temp, 1) +
                  "&humidity=" + String(dumpsters[i].humidity, 1) +
-                 "&ip=" + espIP +                    // ✅ TRACCAR NATIVE IP FIELD
-                 "&deviceIP=" + espIP +              // ✅ FOR DASHBOARD
-                 "&esp_ip=" + espIP;                 // ✅ EXTRA COMPAT
+                 "&ip=" + espIP +                    // TRACCAR NATIVE IP FIELD
+                 "&deviceIP=" + espIP +              // FOR DASHBOARD
+                 "&esp_ip=" + espIP;                 // EXTRA COMPAT
     
-    Serial.printf("🗑️ [%s] %d%% IP:%s\n", dumpsters[i].id, dumpsters[i].fill, espIP.c_str());
+    Serial.printf("[%s] %d%% IP:%s\n", dumpsters[i].id, dumpsters[i].fill, espIP.c_str());
     
     blinkLED(1);
     http.begin(client, url);
@@ -188,9 +189,9 @@ void loadTraccarIPFromEEPROM() {
   
   if (validIP && ipBuffer[0] != 255) {  // 255 = uninitialized EEPROM
     traccarIP = String(ipBuffer);
-    Serial.printf("✅ Loaded Traccar IP from EEPROM: %s\n", traccarIP.c_str());
+    Serial.printf("Loaded Traccar IP from EEPROM: %s\n", traccarIP.c_str());
   } else {
-    Serial.printf("⚠️ No Traccar IP in EEPROM, using default: %s\n", traccarIP.c_str());
+    Serial.printf("No Traccar IP in EEPROM, using default: %s\n", traccarIP.c_str());
   }
   EEPROM.end();
 }
@@ -206,7 +207,7 @@ void saveTraccarIPToEEPROM() {
   }
   EEPROM.commit();
   EEPROM.end();
-  Serial.printf("💾 Saved Traccar IP to EEPROM: %s\n", traccarIP.c_str());
+  Serial.printf("Saved Traccar IP to EEPROM: %s\n", traccarIP.c_str());
 }
 
 void setup() {
@@ -235,12 +236,12 @@ void setup() {
     Serial.print(".");
   }
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.printf("\n✅ WiFi Connected: %s\n", WiFi.localIP().toString().c_str());
+    Serial.printf("\n WiFi Connected: %s\n", WiFi.localIP().toString().c_str());
   } else {
-    Serial.println("\n⚠️ WiFi not connected (will retry in runCycle)");
+    Serial.println("\n WiFi not connected (will retry in runCycle)");
   }
 
-  // ✅ /status ENDPOINT for proximity polling
+  // /status ENDPOINT for proximity polling
   server.on("/status", []() {
     int fill = constrain(map(readDistance(), FULL_DISTANCE, EMPTY_DISTANCE, 100, 0), 0, 100);
     float temp = dht.readTemperature();
@@ -257,14 +258,14 @@ void setup() {
     json += "}";
     
     server.send(200, "application/json", json);
-    Serial.println("📡 /status → Fill:" + String(fill) + "% IP:" + WiFi.localIP().toString());
+    Serial.println("/status → Fill:" + String(fill) + "% IP:" + WiFi.localIP().toString());
   });
 
   // Truck nearby webhook
   server.on("/truck-nearby", []() {
     truckNearby = true;
     multiReadCount = 0;
-    Serial.println("🚛 TRUCK TRIGGERED - Multi-read mode!");
+    Serial.println("TRUCK TRIGGERED - Multi-read mode!");
     server.send(200, "text/plain", "OK");
   });
 
@@ -273,29 +274,29 @@ void setup() {
     if (server.hasArg("ip")) {
       traccarIP = server.arg("ip");
       saveTraccarIPToEEPROM();
-      server.send(200, "text/plain", "✅ Traccar IP: " + traccarIP);
-      Serial.println("💾 Traccar IP set: " + traccarIP);
+      server.send(200, "text/plain", "Traccar IP: " + traccarIP);
+      Serial.println("Traccar IP set: " + traccarIP);
     } else {
-      server.send(400, "text/plain", "❌ ?ip=10.0.0.75");
+      server.send(400, "text/plain", "?ip=10.0.0.75"); // RPi IP
     }
   });
 
   server.begin();
-  Serial.printf("🌐 Server on %s (80:/status, /truck-nearby, /set-traccar-ip)\n", 
+  Serial.printf("Server on %s (80:/status, /truck-nearby, /set-traccar-ip)\n", 
                 WiFi.localIP().toString().c_str());
 }
 
 void runCycle() {
-  Serial.printf("🗑️ DUMPSTER ESP v14.6 | Cycle #%d | IP:%s\n", bootCount++, WiFi.localIP().toString().c_str());
+  Serial.printf("DUMPSTER ESP v14.6 | Cycle #%d | IP:%s\n", bootCount++, WiFi.localIP().toString().c_str());
 
   float humidity = dht.readHumidity();
   float temperature = dht.readTemperature();
   if (isnan(humidity) || isnan(temperature)) {
-    Serial.println("❌ DHT failed - using defaults");
+    Serial.println("DHT failed - Using defaults");
     temperature = 20.0; humidity = 50.0;
   }
 
-  Serial.println("📏 SONAR:");
+  Serial.println("SONAR:");
   int readings[10], valid = 0, sum = 0;
   for (int i = 0; i < 10; i++) {
     readings[i] = readDistance();
@@ -309,7 +310,7 @@ void runCycle() {
   int dist = valid > 4 ? sum / valid : EMPTY_DISTANCE;
   int fill = constrain(map(dist, FULL_DISTANCE, EMPTY_DISTANCE, 100, 0), 0, 100);
 
-  Serial.printf("📊 REAL: Dist=%dcm | Fill=%d%% | T=%.1f°C | H=%.1f%%\n", 
+  Serial.printf("REAL: Dist=%dcm | Fill=%d%% | T=%.1f°C | H=%.1f%%\n", 
                 dist, fill, temperature, humidity);
 
   blinkLED(2);
@@ -324,7 +325,7 @@ void runCycle() {
   }
 
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.printf("\n✅ WiFi: %s\n", WiFi.localIP().toString().c_str());
+    Serial.printf("\n WiFi: %s\n", WiFi.localIP().toString().c_str());
     
     if (millis() - lastRandomizeMillis >= RANDOMIZE_INTERVAL) {
       randomizeDumpstersExceptZero();
@@ -332,14 +333,14 @@ void runCycle() {
     }
 
     sendAllDumpsters(fill, temperature, humidity, true);
-    Serial.println("✅ 10 DUMPSTERS SENT!");
+    Serial.println("10 Dumpsters sent!");
     blinkLED(5);
   } else {
-    Serial.println("\n❌ WiFi FAILED!");
+    Serial.println("\n WiFi FAILED!");
     blinkLED(10);
   }
 
-  Serial.println("⏳ WAITING 5min...");
+  Serial.println("Waiting 5min...");
   delay(RANDOMIZE_INTERVAL);
 }
 
@@ -349,7 +350,7 @@ void loop() {
   server.handleClient();
   
   if (truckNearby && multiReadCount < MULTI_READ_SAMPLES) {
-    Serial.println("🚛 TRUCK NEARBY - Multi-read");
+    Serial.println("Truck nearby - Multi-read");
     float humidity = dht.readHumidity();
     float temperature = dht.readTemperature();
     int dist = readDistance();
@@ -361,7 +362,7 @@ void loop() {
   } else if (truckNearby && multiReadCount >= MULTI_READ_SAMPLES) {
     truckNearby = false;
     multiReadCount = 0;
-    Serial.println("✅ Multi-read done\n");
+    Serial.println("Multi-read done\n");
   }
   
   runCycle();
