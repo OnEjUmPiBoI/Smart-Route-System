@@ -1,16 +1,17 @@
 #include <Arduino.h>
-#include <ESP8266WiFi.h>
-#include <WiFiClient.h> 
-#include <ESP8266HTTPClient.h>
-#include <ESP8266WebServer.h>
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <HTTPClient.h>
+#include <WebServer.h>
 #include <DHT.h>
 #include <EEPROM.h>
+#include <esp_system.h>   // for esp_random()
 
-// 🔧 ESP8266 PINS (NodeMCU)
-#define TRIG_PIN D1    // GPIO5
-#define ECHO_PIN D2    // GPIO4  
-#define DHT_PIN D4     // GPIO2
-#define BUILTIN_LED 2  // Built-in LED (active LOW)
+// 🔧 ESP32-S3 PINS (adjust as needed for your board)
+#define TRIG_PIN 5    // GPIO5
+#define ECHO_PIN 4    // GPIO4
+#define DHT_PIN 2     // GPIO2
+#define BUILTIN_LED LED_BUILTIN  // use built-in constant
 #define DHT_TYPE DHT11
 #define SOUND_SPEED 0.034
 
@@ -21,7 +22,7 @@
 int bootCount = 1;
 
 DHT dht(DHT_PIN, DHT_TYPE);
-ESP8266WebServer server(80);
+WebServer server(80);
 
 const char* ssid = "galaxy";
 const char* password = "peiq3746";
@@ -221,7 +222,8 @@ void setup() {
   dht.begin();
   delay(3000);
 
-  randomSeed(analogRead(A0));
+  // seed random with hardware RNG on ESP32
+  randomSeed(esp_random());
 
   loadTraccarIPFromEEPROM();
 
